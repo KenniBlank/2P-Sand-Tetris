@@ -1,0 +1,82 @@
+#include "game.h"
+#include "config.h"
+#include <SDL2/SDL.h>
+#include <SDL2/SDL_events.h>
+#include <SDL2/SDL_render.h>
+#include <SDL2/SDL_video.h>
+#include <stdbool.h>
+
+#define unpack_color(color) (color.r), (color.g), (color.b), (color.a)
+
+bool game_init(GameContext* GC) {
+        if (SDL_Init(SDL_INIT_VIDEO) != 0) {
+                fprintf(stderr, "SDL_Init error: %s\n", SDL_GetError());
+                return false;
+        }
+
+        SDL_Window* window = SDL_CreateWindow(
+                "2P Sand Tetris",
+                SDL_WINDOWPOS_CENTERED,
+                SDL_WINDOWPOS_CENTERED,
+                WINDOW_WIDTH,
+                WINDOW_HEIGHT,
+                SDL_WINDOW_RESIZABLE
+        );
+
+        if (!window) {
+                fprintf(stderr, "Window error: %s\n", SDL_GetError());
+                SDL_Quit();
+                return false;
+        }
+
+        SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "nearest");
+        SDL_Renderer* renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED);
+        if (!renderer) {
+                fprintf(stderr, "Renderer error: %s\n", SDL_GetError());
+                SDL_DestroyWindow(window);
+                SDL_Quit();
+                return false;
+        }
+
+        //TODO: GC->gameData
+        GC->renderer = renderer;
+        GC->window = window;
+        GC->running = true;
+        GC->redraw = true;
+        GC->last_time = SDL_GetTicks();
+        GC->delta_time = 0.0f;
+
+        // Setting up virtual resolution
+        SDL_RenderSetLogicalSize(GC->renderer, VIRTUAL_WIDTH, VIRTUAL_HEIGHT);
+        SDL_RenderSetIntegerScale(GC->renderer, SDL_TRUE);
+
+        return true;
+}
+
+void game_handle_events(GameContext* GC) {
+        SDL_Event event;
+        while (SDL_PollEvent(&event)) {
+                if (event.type == SDL_QUIT) {
+                        GC->running = false;
+                        return;
+                }
+        }
+}
+
+void game_update(GameContext* GC) {}
+
+void game_render(GameContext* GC) {
+        if (GC->redraw) {
+                SDL_SetRenderDrawColor(GC->renderer, 255, 255, 255, 255);
+                SDL_RenderClear(GC->renderer);
+
+                SDL_RenderPresent(GC->renderer);
+                GC->redraw = false;
+        }
+}
+
+void game_cleanup(GameContext* GC) {
+        SDL_DestroyRenderer(GC->renderer);
+        SDL_DestroyWindow(GC->window);
+        SDL_Quit();
+}
