@@ -27,7 +27,7 @@ typedef struct {
 } TetrominoCollection;
 
 typedef struct {
-        ColorCode color;
+        ColorCode color; // repeated in tetrominoData but who cares!
         // SandParticle particles[PARTICLE_COUNT_IN_BLOCK_ROW][PARTICLE_COUNT_IN_BLOCK_COLUMN];
         float x, y; // top-left position of the block
         float velY; // Velocity which determines how particle behaves!
@@ -36,15 +36,17 @@ typedef struct {
 typedef struct {
         const struct Tetromino *shape;
         uint8_t rotation; // 0–3
-        unsigned x, y; // position of topleft block's topleft!
+        float x, y; // position of topleft block's topleft!
+        float velY;
         ColorCode color;
 
-        SandBlock sandBlock[4]; // 4 Blocks in a tetrimino
+        // SandBlock sandBlock[4]; // 4 Blocks in a tetrimino
 } TetrominoData;
 
 typedef struct {
         // Data on all things needed for game to function
         unsigned score, level;
+
         int colorGrid[GAME_HEIGHT][GAME_WIDTH]; // Store color code only for all pixels on game screen (After blocks converted to sand)
 
         TetrominoCollection tetrominoCollection; // Total Tetromino type in game collection!
@@ -64,6 +66,8 @@ typedef struct {
         // Timing
         Uint32 last_time;
         float delta_time;
+
+        const Uint8* keys;
 
         // Gamedata: gameOver? score, level, sanddata, which tetromino next?, etc
         GameData gameData;
