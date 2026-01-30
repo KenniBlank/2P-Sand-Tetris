@@ -2,6 +2,7 @@
 #define GAME_H
 
 #include <SDL2/SDL.h>
+#include <SDL2/SDL_stdinc.h>
 #include <stdbool.h>
 #include "config.h"
 
@@ -9,8 +10,11 @@ typedef enum {
         COLOR_RED,
         COLOR_GREEN,
         COLOR_BLUE,
+
         COLOR_COUNT,
-        COLOR_NONE // Special Type!
+
+        COLOR_WHITE,
+        COLOR_NONE, // Special Type!
 } ColorCode;
 
 struct Tetromino {

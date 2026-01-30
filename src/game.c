@@ -92,7 +92,7 @@ bool game_init(GameContext* GC) {
 
         for (int i = 0; i < GAME_HEIGHT; i++) {
                 for (int j = 0; j < GAME_WIDTH; j++) {
-                        GD->colorGrid[i][j] = COLOR_NONE;
+                        GD->colorGrid[i][j] = COLOR_NONE; // Fun: rand() %2 ==0?randColor(): COLOR_NONE;
                 }
         }
 
@@ -142,11 +142,12 @@ void game_handle_events(GameContext* GC) {
                                                 break;
                                         }
 
-                                        case SDLK_DOWN: {
-                                                // TODO: Add velocity concept to this too
-                                                GC->gameData.currentTetromino.y += GC->delta_time * 200;
-                                                break;
-                                        }
+                                        // TODO: Fix collision detection so that this works
+                                        //      Alternative solution: find the pixel closest to it vertically down, and add y difference to it's y
+                                        // case SDLK_DOWN: {
+                                        //         GC->gameData.currentTetromino.y += GC->delta_time * (~0);
+                                        //         break;
+                                        // }
 
                                         case SDLK_d: {
                                                 destroyCurrentTetromino(&GC->gameData);
@@ -316,7 +317,7 @@ static bool checkIfTetriminoCollidesWithOtherParticles(GameData* GD) {
                                         if (gridX < 0 || gridX >= GAME_WIDTH) continue;
 
                                         if (GD->colorGrid[gridY][gridX] != COLOR_NONE) {
-                                                return true; // REAL collision
+                                                return true;
                                         }
                                 }
                         }
@@ -326,15 +327,21 @@ static bool checkIfTetriminoCollidesWithOtherParticles(GameData* GD) {
         return false;
 }
 
+static void floodFillTest(int (*colorGrid)[GAME_WIDTH]) {
+
+}
+
+static void sandClearance(GameData* GD) {
+        int (*colorGrid)[GAME_WIDTH] = GD->colorGrid;
+
+        // Algorithm: Flood fill
+
+}
+
 void game_update(GameContext* GC) {
         GameData* GD = &GC->gameData;
         TetrominoData* TD = &GD->currentTetromino;
 
-        if (checkIfTetriminoCollidingWithFloor(TD) || checkIfTetriminoCollidesWithOtherParticles(GD)) {
-                destroyCurrentTetromino(GD);
-        }
-
-        // TODO: Step 0: Maximum clearance algorithm, delete sand, ... score, level, ...
         update_sand_particle_falling(GD->colorGrid);
 
         // Steps
@@ -342,21 +349,39 @@ void game_update(GameContext* GC) {
         //      1.a if it is, convert that to sand and add to colorGrid, swap currentTetromino to nextTetromino and spawn newTetromino for nextTetromino
         //              Note: make sure to set the x, y to different for new tetromino
         //      1.b if it's not, Update current tetromino's location
+        if (checkIfTetriminoCollidingWithFloor(TD) || checkIfTetriminoCollidesWithOtherParticles(GD)) {
+                // 1.a
+                destroyCurrentTetromino(GD);
+        } else {
+                // 1. b
+                TD->velY += GRAVITY * GC->delta_time;
+                TD->y += TD->velY * GC->delta_time;
+        }
 
-        // 1. b
-        TD->velY += GRAVITY * GC->delta_time;
-        TD->y += TD->velY * GC->delta_time;
+        // TODO: Maximum clearance algorithm, delete sand, ... score, level, ...
+        // 2. Maximum clearance
+        //      2.a Detect
+        //      2.b Convert all to color_none gracefully i.e go from COLOR_WHITE to COLOR_NONE
+        sandClearance(GD); // TODO: heavy function but implement first
 }
 
 static void renderSandBlock(SDL_Renderer* renderer, SandBlock* SB) {
-        SDL_SetRenderDrawColor(renderer, unpack_color(enumToColor(SB->color)));
-
+        // Border!
         SDL_Rect SB_Rect = {
                 .x = (int) SB->x,
                 .y = (int) SB->y,
                 .w = PARTICLE_COUNT_IN_BLOCK_COLUMN,
                 .h = PARTICLE_COUNT_IN_BLOCK_ROW
         };
+        SDL_SetRenderDrawColor(renderer, unpack_color(enumToColor(COLOR_WHITE)));
+        SDL_RenderDrawRect(renderer, &SB_Rect);
+
+        // Sand
+        SB_Rect.x += 1;
+        SB_Rect.y += 1;
+        SB_Rect.w -= 2;
+        SB_Rect.h -= 2;
+        SDL_SetRenderDrawColor(renderer, unpack_color(enumToColor(SB->color)));
         SDL_RenderFillRect(renderer, &SB_Rect);
 }
 
@@ -384,23 +409,15 @@ static void renderTetrimino(SDL_Renderer* renderer, const TetrominoData* t) {
 static void gameRenderDebug(SDL_Renderer* renderer, TetrominoData* TD) {
         if (!DEBUG) return;
         SDL_SetRenderDrawColor(renderer, unpack_color(enumToColor(COLOR_RED)));
-        SDL_Rect r = { 0, 0, VIRTUAL_WIDTH, VIRTUAL_HEIGHT };
-        SDL_RenderDrawRect(renderer, &r);
 
-        r.w = (r.w / 3) * 2;
-        SDL_RenderDrawRect(renderer, &r);
-
-        r.x = GAME_POS_X - 1;
-        r.y = GAME_POS_Y - 1;
-        r.w = GAME_WIDTH + 2;
-        r.h = GAME_HEIGHT + 2;
-        SDL_RenderDrawRect(renderer, &r);
+        SDL_Rect r = {
+                .x = TD->x,
+                .y = TD->y,
+                .w = PARTICLE_COUNT_IN_BLOCK_COLUMN * 4,
+                .h = PARTICLE_COUNT_IN_BLOCK_ROW * 4
+        };
 
         // Current Tetromino border
-        r.x = TD->x;
-        r.y = TD->y;
-        r.w = PARTICLE_COUNT_IN_BLOCK_COLUMN * 4;
-        r.h = PARTICLE_COUNT_IN_BLOCK_ROW * 4;
         SDL_RenderDrawRect(renderer, &r);
 
         SDL_SetRenderDrawColor(renderer, unpack_color(enumToColor(COLOR_BLUE)));
@@ -447,11 +464,28 @@ static void renderAllParticles(SDL_Renderer* renderer, int colorGrid[GAME_HEIGHT
         }
 }
 
+static void renderGameUI(SDL_Renderer* renderer, GameContext* GC) {
+        SDL_SetRenderDrawColor(renderer, unpack_color(enumToColor(COLOR_RED)));
+
+        SDL_Rect r = { 0, 0, VIRTUAL_WIDTH, VIRTUAL_HEIGHT };
+        SDL_RenderDrawRect(renderer, &r);
+
+        r.w = (r.w / 3) * 2;
+        SDL_RenderDrawRect(renderer, &r);
+
+        r.x = GAME_POS_X - 1;
+        r.y = GAME_POS_Y - 1;
+        r.w = GAME_WIDTH + 2;
+        r.h = GAME_HEIGHT + 2;
+        SDL_RenderDrawRect(renderer, &r);
+}
+
 void game_render(GameContext* GC) {
         // Clear to BLACK
         SDL_SetRenderDrawColor(GC->renderer, 0, 0, 0, 255);
         SDL_RenderClear(GC->renderer);
 
+        renderGameUI(GC->renderer, GC);
 
         renderAllParticles(GC->renderer, GC->gameData.colorGrid);
 
@@ -459,6 +493,7 @@ void game_render(GameContext* GC) {
         renderTetrimino(GC->renderer, &GC->gameData.nextTetromino); // Part of UI:
 
         gameRenderDebug(GC->renderer, &GC->gameData.currentTetromino);
+
         // Display modified renderer
         SDL_RenderPresent(GC->renderer);
 }
@@ -523,7 +558,7 @@ static inline void InitializeTetriminoCollection(TetrominoCollection* TC) {
                 { // Rotation 3: rotation left of rotation 2
                 {0, 0, 0, 0},
                 {0, 1, 1, 0},
-                {0, 1, 1, 1},
+                {0, 1, 1, 0},
                 {0, 0, 0, 0},
                 },
                 { // Rotation 4: rotation left of rotation 3
@@ -639,7 +674,7 @@ static SDL_Color enumToColor(ColorCode CC){
         switch (CC) {
                 case COLOR_RED: {
                         color = (SDL_Color) {
-                                .r = 255,
+                                .r = 240,
                                 .g = 0,
                                 .b = 0,
                                 .a = 255
@@ -651,7 +686,7 @@ static SDL_Color enumToColor(ColorCode CC){
                 case COLOR_GREEN: {
                         color = (SDL_Color) {
                                 .r = 0,
-                                .g = 255,
+                                .g = 240,
                                 .b = 0,
                                 .a = 255
                         };
@@ -662,7 +697,7 @@ static SDL_Color enumToColor(ColorCode CC){
                         color = (SDL_Color) {
                                 .r = 0,
                                 .g = 0,
-                                .b = 255,
+                                .b = 240,
                                 .a = 255
                         };
                         break;
@@ -675,10 +710,22 @@ static SDL_Color enumToColor(ColorCode CC){
                                 .b = 0,
                                 .a = 0
                         };
+                        break;
+                };
+
+
+                case COLOR_WHITE: {
+                        color = (SDL_Color) {
+                                .r = 240,
+                                .g = 240,
+                                .b = 240,
+                                .a = 255
+                        };
+                        break;
                 };
 
                 default: {
-                        color = (SDL_Color) {
+                        color = (SDL_Color) { // Wall! i.e black
                                 .r = 0,
                                 .g = 0,
                                 .b = 0,
@@ -711,13 +758,13 @@ static void destroyCurrentTetromino(GameData* GD) {
                                 int grid_y = block_base_y + y_offset;
 
                                 // Check if within vertical bounds
-                                if (grid_y < 0 || grid_y >= GAME_HEIGHT) continue; // temporary
+                                // if (grid_y < 0 || grid_y >= GAME_HEIGHT) continue; // temporary
 
                                 for (int x_offset = 0; x_offset < PARTICLE_COUNT_IN_BLOCK_COLUMN; x_offset++) {
                                         int grid_x = block_base_x + x_offset;
 
                                         // Check if within horizontal bounds
-                                        if (grid_x < 0 || grid_x >= GAME_WIDTH) continue; // temporary
+                                        // if (grid_x < 0 || grid_x >= GAME_WIDTH) continue; // temporary
 
                                         // Place the color in the grid
                                         GD->colorGrid[grid_y][grid_x] = color;
@@ -726,10 +773,7 @@ static void destroyCurrentTetromino(GameData* GD) {
                 }
         }
 
-        // Swap current and next tetromino
         GD->currentTetromino = GD->nextTetromino;
-
-        // Reset position and velocity for the new current tetromino
         GD->currentTetromino.x = GAME_POS_X + (GAME_WIDTH - 4.0f * PARTICLE_COUNT_IN_BLOCK_COLUMN) / 2.0f;
         GD->currentTetromino.y = - 2.0f * PARTICLE_COUNT_IN_BLOCK_ROW;
         GD->currentTetromino.velY = 0;
