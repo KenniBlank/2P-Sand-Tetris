@@ -94,7 +94,11 @@ typedef struct {
 
         // Gamedata: gameOver? score, level, sanddata, which tetromino next?, etc
         GameData gameData;
+
         AudioData audioData;
+        AudioSlider *musicSlider;
+        AudioSlider *sfxSlider;
+
         FontData fontData;
 } GameContext;
 

@@ -39,6 +39,14 @@ typedef struct {
         int is_initialized;
 } AudioData;
 
+typedef struct {
+        int x, y;       // top-left of slider bar
+        int w, h;       // width & height of slider bar
+        int handleW;    // width of handle
+        int handleX;    // current handle position
+        int volume;     // 0 to MIX_MAX_VOLUME
+} AudioSlider;
+
 int audio_init(AudioData* audio);
 void audio_playMusic(AudioData* audio, const char* path);
 void audio_playSFX(AudioData* audio, const char* path);
@@ -46,5 +54,9 @@ void audio_stopMusic(AudioData* audio);
 void audio_setMusicVolume(AudioData* audio, int volume);
 void audio_setSFXVolume(AudioData* audio, int volume);
 void audio_cleanup(AudioData* audio);
+
+void updateSliderMusic(AudioSlider *slider, AudioData *audio, int mouseX, int mouseY, int mouseState);
+void updateSliderSFX(AudioSlider *slider, AudioData *audio, int mouseX, int mouseY, int mouseState);
+void renderSlider(SDL_Renderer *renderer, AudioSlider *slider);
 
 #endif

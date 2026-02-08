@@ -185,7 +185,41 @@ bool game_init(GameContext* GC) {
         GC->keys = SDL_GetKeyboardState(NULL);
         InitializeTetriminoCollection(&GC->gameData.tetrominoCollection);
 
+        // Music slider
+        GC->musicSlider = malloc(sizeof(AudioSlider));
+        GC->sfxSlider = malloc(sizeof(AudioSlider));
+        if (GC->musicSlider == NULL || GC->sfxSlider == NULL) {
+                audio_cleanup(&GC->audioData);
+                fontData_destroy(&fontData);
+                SDL_DestroyTexture(texture);
+                SDL_DestroyRenderer(renderer);
+                SDL_DestroyWindow(window);
+                SDL_Quit();
+                return -1;
+        }
+
         _game_init_(GC);
+
+        *GC->musicSlider = (AudioSlider){
+                .x = INFO_PANEL_X + GAME_PADDING,
+                .y = 0,
+                .w = INFO_PANEL_WIDTH - GAME_PADDING * 2,
+                .h = 10 * SCALE_FACTOR,
+                .handleW = 6 * SCALE_FACTOR,
+                .volume = DEFAULT_MUSIC_VOLUME
+        };
+        GC->musicSlider->handleX = GC->musicSlider->x + (GC->musicSlider->volume / 128.0f) * (GC->musicSlider->w - GC->musicSlider->handleW);
+
+        // SFX slider - simplified initialization
+        *GC->sfxSlider = (AudioSlider){
+                .x = INFO_PANEL_X + GAME_PADDING,
+                .y = 0,
+                .w = INFO_PANEL_WIDTH - GAME_PADDING * 2,
+                .h = 10 * SCALE_FACTOR,
+                .handleW = 6 * SCALE_FACTOR,
+                .volume = DEFAULT_SFX_VOLUME
+        };
+        GC->sfxSlider->handleX = GC->sfxSlider->x + (GC->sfxSlider->volume / 128.0f) * (GC->sfxSlider->w - GC->sfxSlider->handleW);
 
         SDL_RenderSetLogicalSize(GC->renderer, VIRTUAL_WIDTH, VIRTUAL_HEIGHT);
         SDL_RenderSetIntegerScale(GC->renderer, SDL_TRUE);
@@ -196,6 +230,21 @@ void game_handle_events(GameContext* GC) {
         SDL_Event event;
         while (SDL_PollEvent(&event)) {
                 switch (event.type) {
+                        case SDL_MOUSEMOTION: {
+                                int mx = event.motion.x;
+                                int my = event.motion.y;
+                                int state = event.motion.state;
+
+                                if (GC->musicSlider) {
+                                        updateSliderMusic(GC->musicSlider, &GC->audioData, mx, my, state);
+                                }
+
+                                if (GC->sfxSlider) {
+                                        updateSliderSFX(GC->sfxSlider, &GC->audioData, mx, my, state);
+                                }
+                                break;
+                        }
+
                         case SDL_QUIT: {
                                 GC->running = false;
                                 break;
@@ -701,10 +750,6 @@ static void renderGameUI(SDL_Renderer* renderer, GameContext* GC) {
         // Render next tetromino preview
         renderTetrimino(GC->renderer, &GC->gameData.nextTetromino, false);
 
-        if (GC->gameData.gameOver) {
-                // TODO: Display Game Over screen
-        }
-
         char str[256];
         SDL_Rect txtContainerRect = (SDL_Rect) {
                 .x = INFO_PANEL_X + GAME_PADDING,
@@ -717,21 +762,49 @@ static void renderGameUI(SDL_Renderer* renderer, GameContext* GC) {
         snprintf(str, sizeof(str), "Next: %s", GC->gameData.nextTetromino.shape->name);
         font_render_rect(&GC->fontData, GC->renderer, str, FONT_PATH, -1, TTF_STYLE_NORMAL, enumToColor(COLOR_BORDER), txtContainerRect);
 
-        // Current score
-        txtContainerRect.y += txtContainerRect.h;
+        txtContainerRect.y += txtContainerRect.h * 1.2f;
         snprintf(str, sizeof(str), "Score: %15d", GC->gameData.score);
         font_render_rect(&GC->fontData, GC->renderer, str, FONT_PATH, -1, TTF_STYLE_NORMAL, enumToColor(COLOR_BORDER), txtContainerRect);
 
+        // More spacing after score before sliders
+        txtContainerRect.y += txtContainerRect.h;
+
+        // Smaller font for volume labels
+        SDL_Rect smallTxtRect = txtContainerRect;
+        smallTxtRect.h = 5 * SCALE_FACTOR;  // Smaller text for volume labels
+
+        // Music Volume Label
+        snprintf(str, sizeof(str), "Music Volume");
+        font_render_rect(&GC->fontData, GC->renderer, str, FONT_PATH, -1, TTF_STYLE_NORMAL, enumToColor(COLOR_BORDER), smallTxtRect);
+
+        // Music slider - AFTER the label
+        smallTxtRect.y += smallTxtRect.h * 1.1f;  // Move down from label
+        if (GC->musicSlider) {
+                GC->musicSlider->y = smallTxtRect.y;
+                renderSlider(renderer, GC->musicSlider);
+        }
+
+        // SFX Volume Label
+        smallTxtRect.y += smallTxtRect.h * 1.8f;  // Space after slider
+        snprintf(str, sizeof(str), "SFX Volume");
+        font_render_rect(&GC->fontData, GC->renderer, str, FONT_PATH, -1, TTF_STYLE_NORMAL, enumToColor(COLOR_BORDER), smallTxtRect);
+
+        // SFX slider - AFTER the label
+        smallTxtRect.y += smallTxtRect.h * 1.1f;  // Move down from label
+        if (GC->sfxSlider) {
+                GC->sfxSlider->y = smallTxtRect.y;
+                renderSlider(renderer, GC->sfxSlider);
+        }
+
         // High scores section
-        txtContainerRect.y += 3 * txtContainerRect.h;
-        txtContainerRect.x = INFO_PANEL_X;
+        txtContainerRect.y = smallTxtRect.y + txtContainerRect.h;
+        txtContainerRect.x = INFO_PANEL_X + GAME_PADDING;
         snprintf(str, sizeof(str), "High Scores:");
         font_render_rect(&GC->fontData, GC->renderer, str, FONT_PATH, -1, TTF_STYLE_NORMAL, enumToColor(COLOR_BORDER), txtContainerRect);
 
         // High scores list
-        txtContainerRect.x = INFO_PANEL_X + GAME_PADDING;
-        txtContainerRect.y += txtContainerRect.h;
-        txtContainerRect.h -= 10 * SCALE_FACTOR;
+        txtContainerRect.y += txtContainerRect.h * 0.9f;
+        txtContainerRect.h = 10 * SCALE_FACTOR;
 
         for (int i = 0; i < HIGH_SCORE_COUNT; i++) {
                 if (GC->HIGH_SCORES[i] == 0) {
@@ -740,12 +813,9 @@ static void renderGameUI(SDL_Renderer* renderer, GameContext* GC) {
                         snprintf(str, sizeof(str), "%2d. %d", (i + 1), GC->HIGH_SCORES[i]);
                 }
                 font_render_rect(&GC->fontData, GC->renderer, str, FONT_PATH, -1, TTF_STYLE_NORMAL, enumToColor(COLOR_BORDER), txtContainerRect);
-                txtContainerRect.y += txtContainerRect.h * 1.5f;
+                txtContainerRect.y += txtContainerRect.h * 1.1f;
         }
-
-        // TODO: Audio Controller Slider
 }
-
 void game_render(GameContext* GC) {
         // Clear to BLACK
         SDL_SetRenderDrawColor(GC->renderer, 0, 0, 0, 255);
@@ -764,6 +834,28 @@ void game_render(GameContext* GC) {
         renderTetrimino(GC->renderer, &GC->gameData.currentTetromino, false);
         renderTetrimino(GC->renderer, &GC->gameData.ghostTetromino, true);
 
+        // GameOver Screen
+        if (GC->gameData.gameOver) {
+                char str[256];
+                SDL_Rect txtContainerRect = (SDL_Rect) {
+                        .x = GAME_POS_X + GAME_PADDING,
+                        .y = GAME_POS_Y,
+                        .w = GAME_WIDTH - GAME_PADDING * 2,
+                        .h = GAME_HEIGHT / 2
+                };
+
+                snprintf(str, sizeof(str), "GAME OVER");
+                font_render_rect(&GC->fontData, GC->renderer, str, FONT_PATH, -1, TTF_STYLE_NORMAL, (SDL_Color){.r = 255, .g = 0, .b = 255, .a = 255}, txtContainerRect);
+                txtContainerRect.h -= GAME_HEIGHT / 3;
+                txtContainerRect.y += GAME_HEIGHT / 3;
+                snprintf(str, sizeof(str), "Your Score: %u", GC->gameData.score);
+                font_render_rect(&GC->fontData, GC->renderer, str, FONT_PATH, -1, TTF_STYLE_NORMAL, (SDL_Color){.r = 255, .g = 0, .b = 255, .a = 255}, txtContainerRect);
+                txtContainerRect.h -= GAME_PADDING * 3;
+                txtContainerRect.y += GAME_HEIGHT / 5;
+                snprintf(str, sizeof(str), "Press [Enter] to play again");
+                font_render_rect(&GC->fontData, GC->renderer, str, FONT_PATH, -1, TTF_STYLE_NORMAL, (SDL_Color){.r = 255, .g = 0, .b = 255, .a = 255}, txtContainerRect);
+        }
+
         // Display modified renderer
         SDL_RenderPresent(GC->renderer);
 }
@@ -777,6 +869,10 @@ void game_cleanup(GameContext* GC) {
         SDL_DestroyTexture(GC->texture);
         SDL_DestroyRenderer(GC->renderer);
         SDL_DestroyWindow(GC->window);
+
+        free(GC->musicSlider);
+        free(GC->sfxSlider);
+
         SDL_Quit();
 }
 

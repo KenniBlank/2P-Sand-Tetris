@@ -3,6 +3,70 @@
 #include <SDL2/SDL_stdinc.h>
 #include <stdio.h>
 
+// SLIDER SPECIFIC
+static inline int isMouseOverSlider(AudioSlider *slider, int mouseX, int mouseY) {
+    return mouseX >= slider->x && mouseX <= slider->x + slider->w &&
+           mouseY >= slider->y && mouseY <= slider->y + slider->h;
+}
+
+void updateSliderMusic(AudioSlider *slider, AudioData *audio, int mouseX, int mouseY, int mouseState) {
+        if ((mouseState & SDL_BUTTON_LMASK) && isMouseOverSlider(slider, mouseX, mouseY)) {
+                slider->handleX = SDL_clamp(mouseX, slider->x, slider->x + slider->w);
+                slider->volume = (slider->handleX - slider->x) * 128 / slider->w;
+                audio_setMusicVolume(audio, slider->volume);
+        }
+}
+
+void updateSliderSFX(AudioSlider *slider, AudioData *audio, int mouseX, int mouseY, int mouseState) {
+        if ((mouseState & SDL_BUTTON_LMASK) && isMouseOverSlider(slider, mouseX, mouseY)) {
+                slider->handleX = SDL_clamp(mouseX, slider->x, slider->x + slider->w);
+                slider->volume = (slider->handleX - slider->x) * 128 / slider->w;
+                audio_setSFXVolume(audio, slider->volume);
+        }
+}
+
+
+// Render slider
+void renderSlider(SDL_Renderer *renderer, AudioSlider *slider) {
+        // Draw slider track (background bar)
+        SDL_Rect track = {
+                slider->x,
+                slider->y + slider->h / 4,
+                slider->w,
+                slider->h / 2
+        };
+        SDL_SetRenderDrawColor(renderer, 60, 60, 60, 255);
+        SDL_RenderFillRect(renderer, &track);
+
+        // Draw filled portion (to show volume level)
+        SDL_Rect filled = {
+                slider->x,
+                slider->y + slider->h / 4,
+                slider->handleX - slider->x + slider->handleW / 2,
+                slider->h / 2
+        };
+        SDL_SetRenderDrawColor(renderer, 150, 50, 50, 255);
+        SDL_RenderFillRect(renderer, &filled);
+
+        // Draw track border
+        SDL_SetRenderDrawColor(renderer, 100, 100, 100, 255);
+        SDL_RenderDrawRect(renderer, &track);
+
+        // Draw handle (slider button)
+        SDL_Rect handle = {
+                slider->handleX - slider->handleW / 2,
+                slider->y,
+                slider->handleW,
+                slider->h
+        };
+        SDL_SetRenderDrawColor(renderer, 220, 80, 80, 255);
+        SDL_RenderFillRect(renderer, &handle);
+
+        // Draw handle border
+        SDL_SetRenderDrawColor(renderer, 255, 100, 100, 255);
+        SDL_RenderDrawRect(renderer, &handle);
+}
+
 // Initialize audio system
 static void audio_preload(AudioData* audio);
 int audio_init(AudioData* audio) {

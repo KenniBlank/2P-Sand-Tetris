@@ -1,7 +1,7 @@
 CC = gcc
 
 CFLAGS = -Wall -std=c11 `sdl2-config --cflags`
-# CFLAGS += -O2
+CFLAGS += -O2
 CFLAGS += -fsanitize=address,undefined
 # CFLAGS += -Wextra
 
