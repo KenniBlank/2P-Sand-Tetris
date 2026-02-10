@@ -473,10 +473,7 @@ static bool checkTetrominoCollision(GameData* GD, TetrominoData* TD) {
         return false;
 }
 
-// TODO
-static bool floodFillDetectAjacent(int grid[GAME_HEIGHT][GAME_WIDTH], bool visited[GAME_HEIGHT][GAME_WIDTH], int x, int y, ColorCode color);
-
-static bool floodFillDetectDiagonal(int grid[GAME_HEIGHT][GAME_WIDTH], bool visited[GAME_HEIGHT][GAME_WIDTH], int x, int y, ColorCode color) {
+static bool floodFillDetectAjacent(int grid[GAME_HEIGHT][GAME_WIDTH], bool visited[GAME_HEIGHT][GAME_WIDTH], int x, int y, ColorCode color) {
         // Recurive function that somehow works! (TODO: might have some edge cases, check and fix that)
         if (x < 0 || x >= GAME_WIDTH || y < 0 || y >= GAME_HEIGHT) {
                 return false;
@@ -489,28 +486,42 @@ static bool floodFillDetectDiagonal(int grid[GAME_HEIGHT][GAME_WIDTH], bool visi
         visited[y][x] = true;
         bool reachesRight = (x == GAME_WIDTH - 1); // check it any of the particles of same color connected have reached the end
 
+        // 4 Directions
+        reachesRight |= floodFillDetectAjacent(grid, visited, x + 1, y, color); // Right
+        reachesRight |= floodFillDetectAjacent(grid, visited, x - 1, y, color); // Left
+        reachesRight |= floodFillDetectAjacent(grid, visited, x, y + 1, color); // Down
+        reachesRight |= floodFillDetectAjacent(grid, visited, x, y - 1, color); // Up
+
+        return reachesRight;
+}
+
+static void floodFillDetectDiagonal(int grid[GAME_HEIGHT][GAME_WIDTH], bool visited[GAME_HEIGHT][GAME_WIDTH], int x, int y, ColorCode color) {
+        // Recurive function that somehow works! (TODO: might have some edge cases, check and fix that)
+        if (x < 0 || x >= GAME_WIDTH || y < 0 || y >= GAME_HEIGHT) {
+                return;
+        }
+
+        if (visited[y][x] || (grid[y][x] != color)) {
+                return;
+        }
+
+        visited[y][x] = true;
         // 8 directions
         for (int dy = -1; dy <= 1; dy++) {
                 for (int dx = -1; dx <= 1; dx++) {
                         if (dx == 0 && dy == 0) {
                                 continue;
                         }
-
-                        reachesRight =  reachesRight | floodFillDetectDiagonal(grid, visited, x + dx, y + dy, color);
+                        floodFillDetectDiagonal(grid, visited, x + dx, y + dy, color);
                 }
         }
 
-        // 4 Direction
-        // if (!reachesRight) reachesRight = reachesRight || floodFillDetectDiagonal(grid, visited, x + 1, y, color); // Right
-        // if (!reachesRight) reachesRight = reachesRight || floodFillDetectDiagonal(grid, visited, x - 1, y, color); // Left
-        // if (!reachesRight) reachesRight = reachesRight || floodFillDetectDiagonal(grid, visited, x, y + 1, color); // Down
-        // if (!reachesRight) reachesRight = reachesRight || floodFillDetectDiagonal(grid, visited, x, y - 1, color); // Up
-
-        return reachesRight;
+        return;
 }
 
 static inline void sandClearance(GameData* GD) {
         int (*grid)[GAME_WIDTH] = GD->colorGrid;
+        bool visited[GAME_HEIGHT][GAME_WIDTH] = {false};
 
         for (ColorCode color = 0; color < COLOR_COUNT; color++) {
                 for (int y = 0; y < GAME_HEIGHT; y++) {
@@ -518,11 +529,9 @@ static inline void sandClearance(GameData* GD) {
                                 continue;
                         }
 
-                        bool visited[GAME_HEIGHT][GAME_WIDTH] = {0};
-
-                        bool spansLeftToRight = floodFillDetectDiagonal(grid, visited, 0, y, color);
-
-                        if (spansLeftToRight) {
+                        memset(visited, false, sizeof(visited));
+                        if (floodFillDetectAjacent(grid, visited, 0, y, color))  {
+                                floodFillDetectDiagonal(grid, visited, 0, y, color);
                                 for (int yy = 0; yy < GAME_HEIGHT; yy++) {
                                         for (int xx = 0; xx < GAME_WIDTH; xx++) {
                                                 if (visited[yy][xx]) {
